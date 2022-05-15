@@ -35,19 +35,32 @@ def detect_face(img, classifier):
 
     if len(faceImage) > 1:
         biggestObject = (0, 0, 0, 0)
-        for object in faceImage:
-            area = object[2] * object[3]
-            bigArea = biggestObject[2] * biggestObject[3]
-            if area > bigArea:
-                biggestObject = object
+        for i in faceImage:
+            if i[3] > biggestObject[3]:
+                biggestObject = i
+        biggestObject = numpy.array([i], numpy.int32)
     elif len(faceImage) == 1:
         biggestObject = faceImage
     else:
         return None
+
+    # if len(faceImage) > 1:
+    #     biggestObject = (0, 0, 0, 0)
+    #     for object in faceImage:
+    #         area = object[2] * object[3]
+    #         bigArea = biggestObject[2] * biggestObject[3]
+    #         if area > bigArea:
+    #             biggestObject = object
+                
+    # elif len(faceImage) == 1:
+    #     biggestObject = faceImage
+    # else:
+    #     return None
     
     for (x, y, w, h) in biggestObject:
         face = img[y:y+h, x:x+w]
-    return face
+        return face, x, y, w, h
+    # return face
 
 # Function that returns 2 values containing images of each eye
 #   Given that eye classifiers are sometimes inaccurate. The algorithm below returns the objects that 
@@ -100,43 +113,66 @@ def cut_eyebrow(img):
     img = img[eyebrowHeight:height, :width]
 
 def blobbing(img, threshold, detector):
-    greyedImage = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if img is not None:
+        greyedImage = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # Thresholding: the first returned value is the threshold used, the second is the image
-    #   Parameters: image | threshold | maxColorVal | thresholdingType (Check docs)
-    _, thresholdedImage = cv2.threshold(greyedImage, threshold, 255, cv2.THRESH_BINARY)
+        # Thresholding: the first returned value is the threshold used, the second is the image
+        #   Parameters: image | threshold | maxColorVal | thresholdingType (Check docs)
+        _, thresholdedImage = cv2.threshold(greyedImage, threshold, 255, cv2.THRESH_BINARY)
 
-    # Extra modifications that make the pupil stand out more
-    thresholdedImage = cv2.erode(thresholdedImage, None, iterations=2) 
-    thresholdedImage = cv2.dilate(thresholdedImage, None, iterations=4)
-    thresholdedImage = cv2.medianBlur(thresholdedImage, 5)
+        # Extra modifications that make the pupil stand out more
+        thresholdedImage = cv2.erode(thresholdedImage, None, iterations=2) 
+        thresholdedImage = cv2.dilate(thresholdedImage, None, iterations=4)
+        thresholdedImage = cv2.medianBlur(thresholdedImage, 5)
 
-    keyPoints = detector.detect(thresholdedImage)
-    return keyPoints
+        keyPoints = detector.detect(thresholdedImage)
+        return keyPoints
+    else:
+        return None
 
 def doNothing(val):
-    return None
-
+    pass
+    
+# Code below has been copied word for word (except for function name changes) from the tutorial linked at the top
 def main():
     cap = cv2.VideoCapture(0)
-    cv2.namedWindow('image')
-    cv2.createTrackbar('threshold', 'image', 0, 255, doNothing)
+    counter = 0
     while True:
         _, frame = cap.read()
-        face_frame = detect_face(frame, face_cascade)
-        if face_frame is not None:
-            eyes = detect_eyes(face_frame, eye_cascade)
-            if eyes is not None:
-                for eye in eyes:
-                    if eye is not None:
-                        threshold = cv2.getTrackbarPos('threshold', 'image')
-                        eye = cut_eyebrow(eye)
-                        keypoints = blobbing(eye, threshold, detector)
-                        eye = cv2.drawKeypoints(eye, keypoints, eye, (0, 0, 255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        cv2.imshow('image', frame)
+
+        faceReturnables = detect_face(frame, face_cascade)
+        if faceReturnables is not None:
+            x = faceReturnables[1]
+            y = faceReturnables[2]
+            w = faceReturnables[3]
+            h = faceReturnables[4]
+
+            cv2.rectangle( frame ,(x,y) , (x+w,y+h),(255,255,0), 2 )
+        cv2.imshow('my image', frame)
+        
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     cap.release()
     cv2.destroyAllWindows()
+
+    # cap = cv2.VideoCapture(0)
+    # cv2.namedWindow('image')
+    # cv2.createTrackbar('threshold', 'image', 0, 255, doNothing)
+    # while True:
+    #     _, frame = cap.read()
+    #     face_frame = detect_face(frame, face_cascade)
+    #     if face_frame is not None:
+    #         eyes = detect_eyes(face_frame, eye_cascade)
+    #         if eyes is not None:
+    #             for eye in eyes:
+    #                 threshold = cv2.getTrackbarPos('threshold', 'image')
+    #                 eye = cut_eyebrow(eye)
+    #                 keypoints = blobbing(eye, threshold, detector)
+    #                 eye = cv2.drawKeypoints(eye, keypoints, eye, (0, 0, 255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    #     cv2.imshow('image', frame)
+    #     if cv2.waitKey(1) & 0xFF == ord('q'):
+    #         break
+    # cap.release()
+    # cv2.destroyAllWindows()
 
 main()
